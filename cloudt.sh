@@ -5,11 +5,12 @@ export PATH
 #=================================================
 #	System Required: CentOS/Debian/Ubuntu
 #	Description: Cloud Torrent
-#	Version: 1.2.2
+#	Version: 1.2.5
 #	Author: Toyo
 #	Blog: https://doub.io/wlzy-12/
 #=================================================
 
+sh_ver="1.2.5"
 file="/usr/local/cloudtorrent"
 ct_file="/usr/local/cloudtorrent/cloud-torrent"
 dl_file="/usr/local/cloudtorrent/downloads"
@@ -23,6 +24,9 @@ Info="${Green_font_prefix}[信息]${Font_color_suffix}"
 Error="${Red_font_prefix}[错误]${Font_color_suffix}"
 Tip="${Green_font_prefix}[注意]${Font_color_suffix}"
 
+check_root(){
+	[[ $EUID != 0 ]] && echo -e "${Error} 当前非ROOT账号(或没有ROOT权限)，无法继续操作，请更换ROOT账号或使用 ${Green_background_prefix}sudo su${Font_color_suffix} 命令获取临时ROOT权限（执行后可能会提示输入当前账号的密码）。" && exit 1
+}
 #检查系统
 check_sys(){
 	if [[ -f /etc/redhat-release ]]; then
@@ -49,10 +53,10 @@ check_pid(){
 	PID=$(ps -ef | grep cloud-torrent | grep -v grep | awk '{print $2}')
 }
 check_new_ver(){
-	ct_new_ver=$(wget --no-check-certificate -qO- https://github.com/jpillora/cloud-torrent/releases/latest | grep "<title>" | sed -r 's/.*Release (.+) · jpillora.*/\1/')
+	ct_new_ver=$(wget --no-check-certificate -qO- -t2 -T3 https://api.github.com/repos/jpillora/cloud-torrent/releases| grep "tag_name"| head -n 1| awk -F ":" '{print $2}'| sed 's/\"//g;s/,//g;s/ //g;s/v//g')
 	if [[ -z ${ct_new_ver} ]]; then
 		echo -e "${Error} Cloud Torrent 最新版本获取失败，请手动获取最新版本号[ https://github.com/jpillora/cloud-torrent/releases ]"
-		stty erase '^H' && read -p "请输入版本号 [ 格式 x.x.xx , 如 0.8.21 ] :" ct_new_ver
+		read -e -p "请输入版本号 [ 格式 x.x.xx , 如 0.8.21 ] :" ct_new_ver
 		[[ -z "${ct_new_ver}" ]] && echo "取消..." && exit 1
 	else
 		echo -e "${Info} Cloud Torrent 目前最新版本为 ${ct_new_ver}"
@@ -62,7 +66,7 @@ check_ver_comparison(){
 	ct_now_ver=$(${ct_file} --version)
 	if [[ ${ct_now_ver} != ${ct_new_ver} ]]; then
 		echo -e "${Info} 发现 Cloud Torrent 已有新版本 [ ${ct_new_ver} ]"
-		stty erase '^H' && read -p "是否更新 ? [Y/n] :" yn
+		read -e -p "是否更新 ? [Y/n] :" yn
 		[ -z "${yn}" ] && yn="y"
 		if [[ ${yn} == [Yy] ]]; then
 			check_pid
@@ -79,8 +83,10 @@ Download_ct(){
 	cd ${file}
 	if [[ ${bit} == "x86_64" ]]; then
 		wget --no-check-certificate -O cloud-torrent.gz "https://github.com/jpillora/cloud-torrent/releases/download/${ct_new_ver}/cloud-torrent_linux_amd64.gz"
-	else
+	elif [[ ${bit} == "i386" || ${bit} == "i686" ]]; then
 		wget --no-check-certificate -O cloud-torrent.gz "https://github.com/jpillora/cloud-torrent/releases/download/${ct_new_ver}/cloud-torrent_linux_386.gz"
+	else
+		wget --no-check-certificate -O cloud-torrent.gz "https://github.com/jpillora/cloud-torrent/releases/download/${ct_new_ver}/cloud-torrent_linux_arm.gz"
 	fi
 	[[ ! -e "cloud-torrent.gz" ]] && echo -e "${Error} Cloud Torrent 下载失败 !" && exit 1
 	gzip -d cloud-torrent.gz
@@ -90,14 +96,14 @@ Download_ct(){
 }
 Service_ct(){
 	if [[ ${release} = "centos" ]]; then
-		if ! wget --no-check-certificate "https://raw.githubusercontent.com/ToyoDAdoubi/doubi/master/other/cloudt_centos" -O /etc/init.d/cloudt; then
+		if ! wget --no-check-certificate "https://raw.githubusercontent.com/ToyoDAdoubi/doubi/master/service/cloudt_centos" -O /etc/init.d/cloudt; then
 			echo -e "${Error} Cloud Torrent服务 管理脚本下载失败 !" && exit 1
 		fi
 		chmod +x /etc/init.d/cloudt
 		chkconfig --add cloudt
 		chkconfig cloudt on
 	else
-		if ! wget --no-check-certificate "https://raw.githubusercontent.com/ToyoDAdoubi/doubi/master/other/cloudt_debian" -O /etc/init.d/cloudt; then
+		if ! wget --no-check-certificate "https://raw.githubusercontent.com/ToyoDAdoubi/doubi/master/service/cloudt_debian" -O /etc/init.d/cloudt; then
 			echo -e "${Error} Cloud Torrent服务 管理脚本下载失败 !" && exit 1
 		fi
 		chmod +x /etc/init.d/cloudt
@@ -136,7 +142,7 @@ Read_config(){
 }
 Set_host(){
 	echo -e "请输入 Cloud Torrent 监听域名或IP（当你要绑定域名前，记得先做好域名解析，目前只支持http://访问，不要写http://，只写域名！）"
-	stty erase '^H' && read -p "(默认: 0.0.0.0 监听网卡所有IP):" ct_host
+	read -e -p "(默认: 0.0.0.0 监听网卡所有IP):" ct_host
 	[[ -z "${ct_host}" ]] && ct_host="0.0.0.0"
 	echo && echo "========================"
 	echo -e "	主机 : ${Red_background_prefix} ${ct_host} ${Font_color_suffix}"
@@ -146,9 +152,9 @@ Set_port(){
 	while true
 		do
 		echo -e "请输入 Cloud Torrent 监听端口 [1-65535]（如果是绑定的域名，那么建议80端口）"
-		stty erase '^H' && read -p "(默认端口: 80):" ct_port
+		read -e -p "(默认端口: 80):" ct_port
 		[[ -z "${ct_port}" ]] && ct_port="80"
-		expr ${ct_port} + 0 &>/dev/null
+		echo $((${ct_port}+0)) &>/dev/null
 		if [[ $? -eq 0 ]]; then
 			if [[ ${ct_port} -ge 1 ]] && [[ ${ct_port} -le 65535 ]]; then
 				echo && echo "========================"
@@ -165,15 +171,15 @@ Set_port(){
 }
 Set_user(){
 	echo "请输入 Cloud Torrent 用户名"
-	stty erase '^H' && read -p "(默认用户名: user):" ct_user
+	read -e -p "(默认用户名: user):" ct_user
 	[[ -z "${ct_user}" ]] && ct_user="user"
 	echo && echo "========================"
 	echo -e "	用户名 : ${Red_background_prefix} ${ct_user} ${Font_color_suffix}"
 	echo "========================" && echo
 
 	echo "请输入 Cloud Torrent 用户名的密码"
-	stty erase '^H' && read -p "(默认密码: doub.io):" ct_passwd
-	[[ -z "${ct_passwd}" ]] && ct_passwd="doub.io"
+	read -e -p "(默认密码: 随机生成10位数字+字母):" ct_passwd
+	[[ -z "${ct_passwd}" ]] && ct_passwd=$(date +%s%N | md5sum | head -c 10)
 	echo && echo "========================"
 	echo -e "	密码 : ${Red_background_prefix} ${ct_passwd} ${Font_color_suffix}"
 	echo "========================" && echo
@@ -181,7 +187,7 @@ Set_user(){
 Set_conf(){
 	Set_host
 	Set_port
-	stty erase '^H' && read -p "是否设置 用户名和密码 ? [y/N] :" yn
+	read -e -p "是否设置 用户名和密码 ? [y/N] :" yn
 	[[ -z "${yn}" ]] && yn="n"
 	if [[ ${yn} == [Yy] ]]; then
 		Set_user
@@ -202,6 +208,7 @@ Set_ct(){
 	Restart_ct
 }
 Install_ct(){
+	check_root
 	[[ -e ${ct_file} ]] && echo -e "${Error} 检测到 Cloud Torrent 已安装 !" && exit 1
 	check_sys
 	echo -e "${Info} 开始设置 用户配置..."
@@ -245,7 +252,7 @@ Restart_ct(){
 }
 Log_ct(){
 	[[ ! -e "${ct_log}" ]] && echo -e "${Error} Cloud Torrent 日志文件不存在 !" && exit 1
-	echo && echo -e "${Tip} 按 ${Red_font_prefix}Ctrl+C${Font_color_suffix} 终止查看日志" && echo
+	echo && echo -e "${Tip} 按 ${Red_font_prefix}Ctrl+C${Font_color_suffix} 终止查看日志" && echo -e "如果需要查看完整日志内容，请用 ${Red_font_prefix}cat ${ct_log}${Font_color_suffix} 命令。" && echo
 	tail -f "${ct_log}"
 }
 Update_ct(){
@@ -259,13 +266,14 @@ Uninstall_ct(){
 	check_installed_status
 	echo "确定要卸载 Cloud Torrent ? (y/N)"
 	echo
-	stty erase '^H' && read -p "(默认: n):" unyn
+	read -e -p "(默认: n):" unyn
 	[[ -z ${unyn} ]] && unyn="n"
 	if [[ ${unyn} == [Yy] ]]; then
 		check_pid
 		[[ ! -z $PID ]] && kill -9 ${PID}
 		Read_config
 		Del_iptables
+		Save_iptables
 		rm -rf ${file} && rm -rf /etc/init.d/cloudt
 		if [[ ${release} = "centos" ]]; then
 			chkconfig --del cloudt
@@ -344,7 +352,20 @@ Set_iptables(){
 		chmod +x /etc/network/if-pre-up.d/iptables
 	fi
 }
-echo && echo -e "请输入一个数字来选择选项
+Update_Shell(){
+	sh_new_ver=$(wget --no-check-certificate -qO- -t1 -T3 "https://raw.githubusercontent.com/ToyoDAdoubi/doubi/master/cloudt.sh"|grep 'sh_ver="'|awk -F "=" '{print $NF}'|sed 's/\"//g'|head -1) && sh_new_type="github"
+	[[ -z ${sh_new_ver} ]] && echo -e "${Error} 无法链接到 Github !" && exit 0
+	if [[ -e "/etc/init.d/cloudt" ]]; then
+		rm -rf /etc/init.d/cloudt
+		Service_ct
+	fi
+	wget -N --no-check-certificate "https://raw.githubusercontent.com/ToyoDAdoubi/doubi/master/cloudt.sh" && chmod +x cloudt.sh
+	echo -e "脚本已更新为最新版本[ ${sh_new_ver} ] !(注意：因为更新方式为直接覆盖当前运行的脚本，所以可能下面会提示一些报错，无视即可)" && exit 0
+}
+echo && echo -e "  Cloud Torrent 一键管理脚本 ${Red_font_prefix}[v${sh_ver}]${Font_color_suffix}
+  ---- Toyo | doub.io/wlzy-12/ ----
+  
+ ${Green_font_prefix}0.${Font_color_suffix} 升级脚本
 
  ${Green_font_prefix}1.${Font_color_suffix} 安装 Cloud Torrent
  ${Green_font_prefix}2.${Font_color_suffix} 升级 Cloud Torrent
@@ -369,8 +390,11 @@ else
 	echo -e " 当前状态: ${Red_font_prefix}未安装${Font_color_suffix}"
 fi
 echo
-stty erase '^H' && read -p " 请输入数字 [1-9]:" num
+read -e -p " 请输入数字 [0-9]:" num
 case "$num" in
+	0)
+	Update_Shell
+	;;
 	1)
 	Install_ct
 	;;
@@ -399,6 +423,6 @@ case "$num" in
 	Log_ct
 	;;
 	*)
-	echo "请输入正确数字 [1-9]"
+	echo "请输入正确数字 [0-9]"
 	;;
 esac
