@@ -51,11 +51,11 @@ Download_caddy(){
 	fi
 	
 	if [[ ${bit} == "x86_64" ]]; then
-		wget --no-check-certificate -O "caddy_linux.tar.gz" "https://caddyserver.com/download/linux/amd64?plugins=http.filemanager&license=personal&telemetry=on"
+		wget --no-check-certificate -O "caddy_linux.tar.gz" "https://caddyserver.com/download/linux/amd64${extension_all}"
 	elif [[ ${bit} == "i386" || ${bit} == "i686" ]]; then
-		wget --no-check-certificate -O "caddy_linux.tar.gz" "https://caddyserver.com/download/linux/386?plugins=http.filemanager&license=personal&telemetry=on"
+		wget --no-check-certificate -O "caddy_linux.tar.gz" "https://caddyserver.com/download/linux/386${extension_all}"
 	elif [[ ${bit} == "armv7l" ]]; then
-		wget --no-check-certificate -O "caddy_linux.tar.gz" "https://caddyserver.com/download/linux/arm7?plugins=http.filemanager&license=personal&telemetry=on"
+		wget --no-check-certificate -O "caddy_linux.tar.gz" "https://caddyserver.com/download/linux/arm7${extension_all}"
 	else
 		echo -e "${Error_font_prefix}[错误]${Font_suffix} 不支持 [${bit}] ! 请向本站反馈[]中的名称，我会看看是否可以添加支持。" && exit 1
 	fi
@@ -71,14 +71,14 @@ Download_caddy(){
 }
 Service_caddy(){
 	if [[ ${release} = "centos" ]]; then
-		if ! wget --no-check-certificate https://raw.githubusercontent.com/ToyoDAdoubi/doubi/master/service/caddy_centos -O /etc/init.d/caddy; then
+		if ! wget --no-check-certificate https://raw.githubusercontent.com/langyongjian/doubi/master/service/caddy_centos -O /etc/init.d/caddy; then
 			echo -e "${Error_font_prefix}[错误]${Font_suffix} Caddy服务 管理脚本下载失败 !" && exit 1
 		fi
 		chmod +x /etc/init.d/caddy
 		chkconfig --add caddy
 		chkconfig caddy on
 	else
-		if ! wget --no-check-certificate https://raw.githubusercontent.com/ToyoDAdoubi/doubi/master/service/caddy_debian -O /etc/init.d/caddy; then
+		if ! wget --no-check-certificate https://raw.githubusercontent.com/langyongjian/doubi/master/service/caddy_debian -O /etc/init.d/caddy; then
 			echo -e "${Error_font_prefix}[错误]${Font_suffix} Caddy服务 管理脚本下载失败 !" && exit 1
 		fi
 		chmod +x /etc/init.d/caddy
